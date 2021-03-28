@@ -1,35 +1,34 @@
-#!/usr/bin/env python3
-"""
-Class to perform semantic mapping.
-"""
-# Takes pose from wrapper and PC labeled from NeuralNet
-# Publishes map to visualization
 import rospy
 from std_msgs.msg import String
 
-def pose_callback(data):
-    # Take the point cloud input
-    pose = data
 
-def pc_callback(data):
-    # Take the point cloud input
-    pose = data
+class MappingSubscriber:
+    def __init__(self, publisher):
+        self.publisher = publisher
+    def pc_callback(self, data):
+        print("pc")
+    def pose_callback(self, data):
+        print("pose")
 
-def listener():
 
-    # In ROS, nodes are uniquely named. If two nodes with the same
-    # name are launched, the previous one is kicked off. The
-    # anonymous=True flag means that rospy will choose a unique
-    # name for our 'listener' node so that multiple listeners can
-    # run simultaneously.
-    rospy.init_node('mapping', anonymous=False)
+def semantic_mapping(pc):
+    return pc
 
-    rospy.Subscriber('scan_wrapper', String, pose_callback)
 
-    rospy.Subscriber('NeuralNet', String, pc_callback)
+# Mapping takes a point cloud and pose, and creates a map
+def main_loop():
+    # Publisher for semantic point clouds
+    map_publisher = rospy.Publisher("map", String, queue_size=10)
+    # Listener for point clouds
+    rospy.init_node('mapping')
+
+    MS = MappingSubscriber(map_publisher)
+    rospy.Subscriber('semantic_pc', String, MS.pc_callback)
+    rospy.Subscriber('pose', String, MS.pose_callback)
 
     # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()
 
+
 if __name__ == '__main__':
-    listener()
+    main_loop()

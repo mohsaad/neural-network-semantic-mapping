@@ -7,11 +7,11 @@ class PublishSubscribe:
         self.publisher = publisher
     def callback(self, data):
         pc = data
-        sem_pc = semantic_mapping(pc)
+        sem_pc = semantic_labeling(pc)
         self.publisher.publish(sem_pc)
 
 
-def semantic_mapping(pc):
+def semantic_labeling(pc):
     return pc
 
 
