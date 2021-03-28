@@ -4,7 +4,10 @@ Class to load scans into ros and send them in at a fixed rate.
 """
 import rospy
 from std_msgs.msg import String
+import numpy as np
 
+
+# Note: this depends on the structure of our project
 def load_scan(filename):
     """
     Load a scan from a file and return a point cloud message.
@@ -15,6 +18,8 @@ def load_scan(filename):
         - pose, as SE(3) transform
         - pointcloud, as list of x,y,z points
     """
+    # Pass filename
+    point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
     return None, None
 
 
