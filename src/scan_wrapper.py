@@ -19,8 +19,10 @@ def load_scan(filename):
         - pointcloud, as list of x,y,z points
     """
     # Pass filename
-    point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
-    return None, None
+    # point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
+    point_cloud = "PC"
+    pose = "Pose"
+    return point_cloud, pose
 
 
 def main():
