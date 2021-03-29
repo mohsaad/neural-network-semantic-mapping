@@ -120,7 +120,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-catkin_install_python(PROGRAMS src/scan_wrapper.py
+catkin_install_python(PROGRAMS src/scan_wrapper.py src/mapping.py src/NeuralNet.py src/Visualization.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
