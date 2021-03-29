@@ -6,8 +6,9 @@ class PublishSubscribe:
     def __init__(self, publisher):
         self.publisher = publisher
     def callback(self, data):
-        pc = data
+        pc = data.data
         sem_pc = semantic_labeling(pc)
+        print(sem_pc)
         self.publisher.publish(sem_pc)
 
 
