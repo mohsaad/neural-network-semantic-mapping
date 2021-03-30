@@ -1,1 +1,1 @@
-msg/Point[] points
+neural-network-semantic-mapping/Point[] points
