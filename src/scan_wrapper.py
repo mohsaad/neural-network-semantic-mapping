@@ -35,7 +35,8 @@ def parse_calibration(filename):
 
 
 # Note: this depends on the structure of our project
-def load_scan(filename):
+# Need to make a messag eto hold pose and point cloud
+def load_scan(counter, folder, scans):
     """
     Load a scan from a file and return a point cloud message.
 
@@ -45,10 +46,9 @@ def load_scan(filename):
         - pose, as SE(3) transform
         - pointcloud, as list of x,y,z points
     """
-    # Pass filename
-    # point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
-    point_cloud = "PC"
-    pose = "Pose"
+    filename = folder + "/" + "{:06}".format(counter)
+    point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
+    pose = scans[counter]
     return point_cloud, pose
 
 
@@ -57,7 +57,7 @@ def load_poses_from_file(filename, calibration):
     poses_raw = np.genfromtxt(filename, delimiter=' ')
     Tr = calibration["Tr"]
     Tr_inv = inv(Tr)
-n
+
     for idx in range(0, poses_raw.shape[0]):
         pose = np.eye(4)
         pose[0, 0:4] = poses_raw[idx, 0:4]
@@ -74,6 +74,7 @@ n
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', "--poses", required=True, help="path to poses file")
+    parser.add_argument('-v', "--velo", required=True, help="path to velodyne folder")
     parser.add_argument('-c', "--calib", required=True, help="path to calib file")
 
     args = parser.parse_args()
@@ -84,15 +85,16 @@ def main():
     rospy.init_node("scan_wrapper")
     rate = rospy.Rate(10)
 
-    load_poses_from_file(args.poses, args.calib)
+    scan_poses = load_poses_from_file(args.poses, args.calib)
 
     counter = 0
 
     try:
         while not rospy.is_shutdown():
-            pc, pose = load_scan(counter)
+            pc, pose = load_scan(counter, args.velo, scan_poses)
             lidar_publisher.publish(pc)
             pose_publisher.publish(pose)
+            counter += 1
 
             rate.sleep()
     except rospy.ROSInterruptException:
