@@ -2,6 +2,7 @@
 import rospy
 from std_msgs.msg import String
 from neural_network_semantic_mapping.msg import *
+import numpy as np
 
 class MappingSubscriber:
     def __init__(self, publisher):
