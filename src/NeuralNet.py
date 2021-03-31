@@ -9,12 +9,11 @@ class PublishSubscribe:
         self.publisher = publisher
     def callback(self, pc_msg):
         pc_data = self.make_np(pc_msg)
-        print(pc_data.shape)
         sem_pc = PointCloud()
         sem_pc.loc = pc_msg.loc
         sem_pc.points = semantic_labeling(pc_data)
         self.publisher.publish(sem_pc)
-    def make_np(selfs, pc_msg):
+    def make_np(self, pc_msg):
         pc_points = pc_msg.points
         pc_data = [point.data for point in pc_points]
         pc_data = np.asarray(pc_data)
