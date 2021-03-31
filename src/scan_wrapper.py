@@ -51,11 +51,12 @@ def load_scan(counter, folder, poses):
     point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
     pose = poses[counter]
 
+    pc_msg = PointCloud()
     pose_msg = Point()
     pose_msg.label = -1
     pose_msg.data = pose
+    pc_msg.loc = pose_msg
 
-    pc_msg = PointCloud()
     points = []
     for i in range(point_cloud.shape[0]):
         new_pt = Point()
@@ -63,7 +64,7 @@ def load_scan(counter, folder, poses):
         new_pt.data = point_cloud[i]
         points.append(new_pt)
     pc_msg.points = points
-    return pc_msg, pose_msg
+    return pc_msg
 
 
 def load_poses_from_file(filename, calibration=None):
@@ -97,7 +98,6 @@ def main():
     args = parser.parse_args()
 
     lidar_publisher = rospy.Publisher("point_cloud", PointCloud, queue_size=10)
-    pose_publisher = rospy.Publisher("pose", Point, queue_size=10)
 
     rospy.init_node("scan_wrapper")
     rate = rospy.Rate(10)
@@ -109,10 +109,9 @@ def main():
 
     try:
         while not rospy.is_shutdown():
-            pc, pose = load_scan(counter, args.velo, scan_poses)
-            print(pose, pc.points[0])
-            lidar_publisher.publish(pc)
-            pose_publisher.publish(pose)
+            pc_with_pose = load_scan(counter, args.velo, scan_poses)
+            print("New pose: ", pc_with_pose.loc)
+            lidar_publisher.publish(pc_with_pose)
             counter += 1
 
             rate.sleep()
