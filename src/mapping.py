@@ -21,7 +21,7 @@ class MappingSubscriber:
         pc_labels = np.asarray(pc_labels)
         return pc_data, pc_labels
     def make_pose(self, sem_pc):
-        pose = sem_pc.loc
+        pose = sem_pc.loc.data
         pose = np.asarray(pose)
         pose = pose.reshape((4, 4))
         return pose
