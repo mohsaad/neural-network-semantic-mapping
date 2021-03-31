@@ -96,8 +96,8 @@ def main():
 
     args = parser.parse_args()
 
-    lidar_publisher = rospy.Publisher("point_cloud", String, queue_size=10)
-    pose_publisher = rospy.Publisher("pose", String, queue_size=10)
+    lidar_publisher = rospy.Publisher("point_cloud", PointCloud, queue_size=10)
+    pose_publisher = rospy.Publisher("pose", Point, queue_size=10)
 
     rospy.init_node("scan_wrapper")
     rate = rospy.Rate(10)
