@@ -61,7 +61,7 @@ def load_scan(counter, folder, poses):
     for i in range(point_cloud.shape[0]):
         new_pt = Point()
         new_pt.label = -1
-        new_pt.data = point_cloud[i]
+        new_pt.data = point_cloud[i].tolist()
         points.append(new_pt)
     pc_msg.points = points
     return pc_msg
