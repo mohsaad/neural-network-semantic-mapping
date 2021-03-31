@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(neural-network-semantic-mapping)
+project(neural_network_semantic_mapping)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -11,6 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  sensor_msgs
+  geometry_msgs
   message_generation
 )
 
@@ -52,6 +54,7 @@ add_message_files(
   FILES
   Point.msg
   PointCloud.msg
+  PoseWithPointCloud.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -69,10 +72,12 @@ add_message_files(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-)
+ generate_messages(
+   DEPENDENCIES
+   std_msgs
+   sensor_msgs
+   geometry_msgs
+ )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -104,10 +109,10 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES neural-network-semantic-mapping
-#  CATKIN_DEPENDS roscpp rospy std_msgs message_runtime
-#  DEPENDS system_lib
+  INCLUDE_DIRS include
+  LIBRARIES neural-network-semantic-mapping
+  CATKIN_DEPENDS roscpp rospy std_msgs message_runtime
+  DEPENDS system_lib
 )
 
 ###########
