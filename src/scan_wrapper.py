@@ -110,7 +110,7 @@ def main():
     try:
         while not rospy.is_shutdown():
             pc, pose = load_scan(counter, args.velo, scan_poses)
-            print(pose, pc[0])
+            print(pose, pc.points[0])
             lidar_publisher.publish(pc)
             pose_publisher.publish(pose)
             counter += 1
