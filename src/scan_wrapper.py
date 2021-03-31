@@ -8,6 +8,7 @@ import numpy as np
 import rospy
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose
+from neural_network_semantic_mapping.msg import *
 
 def parse_calibration(filename):
     """
@@ -36,7 +37,7 @@ def parse_calibration(filename):
 
 # Note: this depends on the structure of our project
 # Need to make a messag eto hold pose and point cloud
-def load_scan(counter, folder, scans):
+def load_scan(counter, folder, poses):
     """
     Load a scan from a file and return a point cloud message.
 
@@ -48,8 +49,21 @@ def load_scan(counter, folder, scans):
     """
     filename = folder + "/" + "{:06}".format(counter) + ".bin"
     point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
-    pose = scans[counter]
-    return point_cloud, pose
+    pose = poses[counter]
+
+    pose_msg = Point()
+    pose_msg.label = -1
+    pose_msg.data = pose
+
+    pc_msg = PointCloud()
+    points = []
+    for i in range(point_cloud.shape[0]):
+        new_pt = Point()
+        new_pt.label = -1
+        new_pt.data = point_cloud[i]
+        points.append(new_pt)
+    pc_msg.points = points
+    return pc_msg, pose_msg
 
 
 def load_poses_from_file(filename, calibration=None):
