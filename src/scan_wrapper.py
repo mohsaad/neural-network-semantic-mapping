@@ -46,17 +46,17 @@ def load_scan(counter, folder, scans):
         - pose, as SE(3) transform
         - pointcloud, as list of x,y,z points
     """
-    filename = folder + "/" + "{:06}".format(counter)
+    filename = folder + "/" + "{:06}".format(counter) + ".bin"
     point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
     pose = scans[counter]
     return point_cloud, pose
 
 
-def load_poses_from_file(filename, calibration):
+def load_poses_from_file(filename, calibration=None):
     scan_poses = []
     poses_raw = np.genfromtxt(filename, delimiter=' ')
-    Tr = calibration["Tr"]
-    Tr_inv = inv(Tr)
+    # Tr = calibration["Tr"]
+    # Tr_inv = inv(Tr)
 
     for idx in range(0, poses_raw.shape[0]):
         pose = np.eye(4)
@@ -66,7 +66,8 @@ def load_poses_from_file(filename, calibration):
         pose[3, 3] = 1.0
 
         # TODO: Apply calibration
-        scan_poses.append(np.matmul(Tr_inv, np.matmul(pose, Tr)))
+        # scan_poses.append(np.matmul(Tr_inv, np.matmul(pose, Tr)))
+        scan_poses.append(pose)
 
     return scan_poses
 
@@ -75,7 +76,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', "--poses", required=True, help="path to poses file")
     parser.add_argument('-v', "--velo", required=True, help="path to velodyne folder")
-    parser.add_argument('-c', "--calib", required=True, help="path to calib file")
+
+    # Add calib later
+    # parser.add_argument('-c', "--calib", required=True, help="path to calib file")
 
     args = parser.parse_args()
 
@@ -85,13 +88,15 @@ def main():
     rospy.init_node("scan_wrapper")
     rate = rospy.Rate(10)
 
-    scan_poses = load_poses_from_file(args.poses, args.calib)
+    scan_poses = load_poses_from_file(args.poses)
+    # scan_poses = load_poses_from_file(args.poses, args.calib)
 
     counter = 0
 
     try:
         while not rospy.is_shutdown():
             pc, pose = load_scan(counter, args.velo, scan_poses)
+            print(pose, pc[0])
             lidar_publisher.publish(pc)
             pose_publisher.publish(pose)
             counter += 1
