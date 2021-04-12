@@ -73,12 +73,19 @@ def load_poses_from_file(filename, calibration=None):
     # Tr = calibration["Tr"]
     # Tr_inv = inv(Tr)
 
+    calibration = np.asarray([[0, 0, 1, 0],
+                              [0, 1, 0, 0],
+                              [1, 0, 0, 0],
+                              [0, 0, 0, 1]])
+
     for idx in range(0, poses_raw.shape[0]):
         pose = np.eye(4)
         pose[0, 0:4] = poses_raw[idx, 0:4]
         pose[1, 0:4] = poses_raw[idx, 4:8]
         pose[2, 0:4] = poses_raw[idx, 8:12]
         pose[3, 3] = 1.0
+
+        pose = calibration @ pose
 
         # TODO: Apply calibration
         # scan_poses.append(np.matmul(Tr_inv, np.matmul(pose, Tr)))
@@ -100,7 +107,7 @@ def main():
     lidar_publisher = rospy.Publisher("point_cloud", PointCloud, queue_size=10)
 
     rospy.init_node("scan_wrapper")
-    rate = rospy.Rate(10)
+    rate = rospy.Rate(1)
 
     scan_poses = load_poses_from_file(args.poses)
     # scan_poses = load_poses_from_file(args.poses, args.calib)

@@ -1,17 +1,35 @@
 #!/usr/bin/env python3
 import rospy
-from std_msgs.msg import String
+from std_msgs.msg import Header, ColorRGBA, String
+from geometry_msgs.msg import Point as Point3d
 from visualization_msgs.msg import Marker, MarkerArray
 from neural_network_semantic_mapping.msg import *
 import numpy as np
+
+COLOR_MAP = np.array(['#f59664', '#f5e664', '#963c1e',
+                      '#b41e50', '#ff0000', '#1e1eff',
+                      '#c828ff', '#5a1e96', '#ff00ff',
+                      '#ff96ff', '#4b004b', '#4b00af', 
+                      '#00c8ff', '#3278ff', '#00af00', 
+                      '#003c87', '#50f096', '#96f0ff', 
+                      '#0000ff', '#ffffff'])
+
+def hex_to_rgb(value):
+    value = value.lstrip('#')
+    lv = len(value)
+    return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
 
 # Occupancy Grid Mapping Class
 class Mapping:
     def __init__(self):
         # map dimensions
-        self.range_x = [-200, 200]
-        self.range_y = [-200, 200]
-        self.range_z = [-2, 2]
+        self.x_r = 200
+        self.y_r = 200
+        self.z_r = 30
+
+        self.range_x = [-self.x_r, self.x_r]
+        self.range_y = [-self.y_r, self.y_r]
+        self.range_z = [-self.z_r, self.z_r]
 
         # senesor parameters
         self.z_max = 30     # max range in meters
@@ -38,6 +56,17 @@ class Mapping:
         self.prior = 0            # prior for setting up mean and variance
         self.prior_alpha = 1e-10  # a small, uninformative prior for setting up alpha
 
+        # MarkerArray for viz
+        self.map_msg = Marker()
+        self.map_msg.type = 6
+        self.map_msg.action = 0
+        self.map_msg.header = Header()
+        self.map_msg.header.frame_id = "map"
+        self.map_msg.scale.x = 1
+        self.map_msg.scale.y = 1
+        self.map_msg.scale.z = 1
+
+
     def construct_map(self):
         # class constructor
         # construct map points, i.e., grid centroids
@@ -49,7 +78,6 @@ class Mapping:
         self.X = X
         self.Y = Y
         self.Z = Z
-        print(X.shape, Y.shape)
         t = np.hstack((X.reshape(-1, 1), Y.reshape(-1, 1), Z.reshape(-1, 1)))
 
         self.poses = []
@@ -74,14 +102,25 @@ class Mapping:
 
     # Check if the indices are within the map's grid
     def map_to_data_structure(self, m_x, m_y, m_z):
-      if m_x + 200 > self.max_x or m_y + 200 > self.max_y or m_z+2 >self.max_z:
+      if m_x + self.x_r > self.max_x or m_y + self.y_r > self.max_y or m_z + self.z_r > self.max_z:
         return -1, -1 , -1
 
-      return m_x + 200, m_y + 200, m_z+2
+      return m_x + self.x_r, m_y + self.y_r, m_z + self.z_r
+
+
+    def data_structure_to_map(self, idx, jdx, kdx):
+        """
+        Return the map cell associated with the current index in the map.
+        """
+        if idx < 0 or idx > 2*self.x_r or jdx < 0 or jdx > 2*self.y_r or kdx < 0 or kdx > 2*self.z_r:
+            return -1, -1, -1
+
+        return idx - self.x_r, jdx - self.y_r, kdx - self.z_r
 
     def _kernel(self, distance, sigma_0=0.1):
         if distance >= self.l:
             return 0
+
         pt1 = 1.0 / 3 * (2 + np.cos(2 * np.pi * distance / self.l))
         pt2 = 1 - distance  / self.l
         pt3 = (1 / (2 * np.pi)) * np.sin(2*np.pi * distance / self.l)
@@ -93,6 +132,7 @@ class Mapping:
         """
         Iteratively build a map using poses and scans.
         """
+        print(labels)
         pose_xyz = pose[0:3, 3]
         print(pose_xyz)
         pose_theta = np.arctan2(pose_xyz[1], pose_xyz[0])
@@ -130,26 +170,52 @@ class Mapping:
 
           # global_z = pose_xyz[2] + scan[idx][2]
     def optimize_map(self):
-      """
-      Optimize the map and compute mean and variance.
-      """
-      for idx in range(self.map['alpha'].shape[0]):
-        for jdx in range(self.map['alpha'].shape[1]):
-          for kdx in range(self.map['alpha'].shape[2]):
-            alpha_sum = np.sum(self.map['alpha'][idx, jdx,kdx, :])
-            self.map['mean'][idx, jdx,kdx, :] = self.map['alpha'][idx, jdx,kdx, :] / alpha_sum
+        """
+        Optimize the map and compute mean and variance.
+        """
+        self.map_msg.points = []
+        self.map_msg.colors = []
 
-            alpha_i = self.map['alpha'][idx, jdx,kdx, :]
-            max_idx = np.argmax(alpha_i)
-            max_alpha = alpha_i[max_idx] / alpha_sum
-            var_num_i = (max_alpha)*(1 - max_alpha)
-            var_den_i = alpha_sum + 1
-            self.map['variance'][idx, jdx,kdx] = var_num_i / var_den_i
+        for idx in range(self.map['alpha'].shape[0]):
+            for jdx in range(self.map['alpha'].shape[1]):
+                for kdx in range(self.map['alpha'].shape[2]):
+                    alpha_sum = np.sum(self.map['alpha'][idx, jdx,kdx, :])
+                    self.map['mean'][idx, jdx,kdx, :] = self.map['alpha'][idx, jdx,kdx, :] * 1.0 / alpha_sum
 
-    def build_map_message(self):
-        self.map.optimize_map()
-        msg = MarkerArray()
+                    alpha_i = self.map['alpha'][idx, jdx,kdx, :]
+                    max_idx = np.argmax(alpha_i)
+                    max_alpha = alpha_i[max_idx] / alpha_sum
+                    var_num_i = (max_alpha)*(1 - max_alpha)
+                    var_den_i = alpha_sum + 1
+                    self.map['variance'][idx, jdx,kdx] = var_num_i / var_den_i
 
+
+        classes = self.map['mean'].reshape(-1, self.num_classes + 1)
+        grid = np.vstack([self.X.flatten(), self.Y.flatten(), self.Z.flatten()]).T
+        semantic_class = np.argmax(classes, axis=1)
+        semantic_class[semantic_class == self.num_classes] = 19
+
+        indices = np.where(semantic_class != 0)
+        grid = grid[indices]
+        semantic_class = semantic_class[indices]
+
+        for idx in range(0, len(grid)):
+            p = Point3d()
+            p.x = grid[idx, 0]
+            p.y = grid[idx, 1]
+            p.z = grid[idx, 2]
+
+            c = ColorRGBA()
+            rgb = hex_to_rgb(COLOR_MAP[semantic_class[idx]])
+            c.r = rgb[0]
+            c.g = rgb[1]
+            c.b = rgb[2]
+            c.a = 1
+
+            self.map_msg.points.append(p)
+            self.map_msg.colors.append(c)
+
+        return self.map_msg
 
 class MappingSubscriber:
     def __init__(self, publisher):
@@ -160,11 +226,11 @@ class MappingSubscriber:
     def callback(self, sem_pc):
         pc_data, pc_labels = self.make_np(sem_pc)
         pose = self.make_pose(sem_pc)
-        print(pose)
-
         self.map.build_ogm_iterative(pose, pc_data, pc_labels)
 
-        self.publisher.publish(sem_pc)
+        map_msg = self.map.optimize_map()
+        self.publisher.publish(map_msg)
+
     def make_np(self, pc_msg):
         pc_points = pc_msg.points
         pc_data = [point.data for point in pc_points]
@@ -183,7 +249,7 @@ class MappingSubscriber:
 # Mapping takes a point cloud and pose, and creates a map
 def main_loop():
     # Publisher for semantic point clouds
-    map_publisher = rospy.Publisher("map", PointCloud, queue_size=10)
+    map_publisher = rospy.Publisher("map", Marker, queue_size=10)
     # Listener for point clouds
     rospy.init_node('mapping')
 

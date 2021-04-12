@@ -1,7 +1,19 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
+import sys
+sys.path.append('spvnas')
+
+try:
+    from urllib import urlretrieve
+except ImportError:
+    from urllib.request import urlretrieve
+
+
 import rospy
 from std_msgs.msg import String
 from neural_network_semantic_mapping.msg import *
+
+import json
+import os
 
 import numpy as np
 # PyTorch
@@ -13,11 +25,44 @@ import torchsparse.nn as spnn
 from torchsparse import SparseTensor
 from torchsparse.utils import sparse_quantize, sparse_collate_fn
 
+from torchpack import distributed as dist
+
 # import SPVNAS model from model zoo
-from model_zoo import spvnas_specialized
-from model_zoo import spvnas_supernet
-from model_zoo import minkunet
-from model_zoo import spvcnn
+from spvnas.core.models.utils import *
+from spvnas.core.models.semantic_kitti.minkunet import MinkUNet
+
+
+def download_url(url, model_dir='~/.torch/', overwrite=False):
+    target_dir = url.split('/')[-1]
+    model_dir = os.path.expanduser(model_dir)
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    model_dir = os.path.join(model_dir, target_dir)
+    cached_file = model_dir
+    if not os.path.exists(cached_file) or overwrite:
+        sys.stderr.write('Downloading: "{}" to {}\n'.format(url, cached_file))
+        urlretrieve(url, cached_file)
+    return cached_file
+
+
+def minkunet(net_id, pretrained=True, **kwargs):
+    url_base = 'https://hanlab.mit.edu/files/SPVNAS/minkunet/'
+    net_config = json.load(open(
+        download_url(url_base + net_id + '/net.config', model_dir='.torch/minkunet/%s/' % net_id)
+    ))
+
+    model = MinkUNet(
+        num_classes=net_config['num_classes'],
+        cr=net_config['cr']
+    ).to('cuda:%d'%dist.local_rank() if torch.cuda.is_available() else 'cpu')
+
+    if pretrained:
+        init = torch.load(
+            download_url(url_base + net_id + '/init', model_dir='.torch/minkunet/%s/' % net_id),
+            map_location='cuda:%d'%dist.local_rank() if torch.cuda.is_available() else 'cpu'
+        )['model']
+        model.load_state_dict(init)
+    return model
 
 def process_point_cloud(input_point_cloud, voxel_size=0.05, ignore_label=19):
     input_point_cloud[:, 3] = input_point_cloud[:, 3]
@@ -66,6 +111,7 @@ def process_point_cloud(input_point_cloud, voxel_size=0.05, ignore_label=19):
 #   }
 class PointCloudSegmentation:
   def __init__(self):
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     self.model = minkunet('SemanticKITTI_val_MinkUNet@29GMACs').to(device)
     self.model.eval()
 
@@ -114,9 +160,9 @@ class PublishSubscribe:
     # This would be where the neural network would do stuff
     def semantic_labeling(self, pc):
         points = []
-        point_cloud, predictions = self.net.segment_pc(oc)
+        point_cloud, predictions = self.net.segment_pc(pc)
 
-        for i in range(point_cloud.shape[0]):
+        for idx in range(point_cloud.shape[0]):
             new_pt = Point()
             new_pt.label = predictions[idx]
             new_pt.data = point_cloud[idx]
