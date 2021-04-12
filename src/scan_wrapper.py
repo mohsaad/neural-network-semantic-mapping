@@ -35,6 +35,29 @@ def parse_calibration(filename):
     return calib
 
 
+def isclose(x, y, rtol=1.e-5, atol=1.e-8):
+    return abs(x-y) <= atol + rtol * abs(y)
+
+def euler_angles_from_rotation_matrix(R):
+    '''
+    From a paper by Gregory G. Slabaugh (undated),
+    "Computing Euler angles from a rotation matrix
+    '''
+    phi = 0.0
+    if isclose(R[2,0],-1.0):
+        theta = np.pi/2.0
+        psi = np.atan2(R[0,1],R[0,2])
+    elif isclose(R[2,0],1.0):
+        theta = np.pi/2.0
+        psi = np.arctan2(-R[0,1],-R[0,2])
+    else:
+        theta = -np.arcsin(R[2,0])
+        cos_theta = np.cos(theta)
+        psi = np.arctan2(R[2,1]/cos_theta, R[2,2]/cos_theta)
+        phi = np.arctan2(R[1,0]/cos_theta, R[0,0]/cos_theta)
+    return psi, theta, phi
+
+
 # Note: this depends on the structure of our project
 # Need to make a messag eto hold pose and point cloud
 def load_scan(counter, folder, poses):
@@ -86,7 +109,8 @@ def load_poses_from_file(filename, calibration=None):
         pose[3, 3] = 1.0
 
         pose = calibration @ pose
-
+        print(pose)
+        print(euler_angles_from_rotation_matrix(pose[0:3, 0:3]))
         # TODO: Apply calibration
         # scan_poses.append(np.matmul(Tr_inv, np.matmul(pose, Tr)))
         scan_poses.append(pose)
@@ -107,7 +131,7 @@ def main():
     lidar_publisher = rospy.Publisher("point_cloud", PointCloud, queue_size=10)
 
     rospy.init_node("scan_wrapper")
-    rate = rospy.Rate(1)
+    rate = rospy.Rate(1.0 / 70)
 
     scan_poses = load_poses_from_file(args.poses)
     # scan_poses = load_poses_from_file(args.poses, args.calib)
@@ -116,6 +140,7 @@ def main():
 
     try:
         while not rospy.is_shutdown():
+            print(counter)
             pc_with_pose = load_scan(counter, args.velo, scan_poses)
             lidar_publisher.publish(pc_with_pose)
             counter += 1

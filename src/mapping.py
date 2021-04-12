@@ -6,6 +6,11 @@ from visualization_msgs.msg import Marker, MarkerArray
 from neural_network_semantic_mapping.msg import *
 import numpy as np
 
+import ctypes as c
+import itertools
+import multiprocessing as mp
+import time
+
 COLOR_MAP = np.array(['#f59664', '#f5e664', '#963c1e',
                       '#b41e50', '#ff0000', '#1e1eff',
                       '#c828ff', '#5a1e96', '#ff00ff',
@@ -19,13 +24,17 @@ def hex_to_rgb(value):
     lv = len(value)
     return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
 
+def _init(a, l):
+    global update_array, lock
+    update_array = a
+    lock = l
 # Occupancy Grid Mapping Class
 class Mapping:
     def __init__(self):
         # map dimensions
-        self.x_r = 200
-        self.y_r = 200
-        self.z_r = 30
+        self.x_r = 400
+        self.y_r = 400
+        self.z_r = 2
 
         self.range_x = [-self.x_r, self.x_r]
         self.range_y = [-self.y_r, self.y_r]
@@ -70,7 +79,6 @@ class Mapping:
     def construct_map(self):
         # class constructor
         # construct map points, i.e., grid centroids
-        
         x = np.arange(self.range_x[0], self.range_x[1]+self.grid_size, self.grid_size)
         y = np.arange(self.range_y[0], self.range_y[1]+self.grid_size, self.grid_size)
         z = np.arange(self.range_z[0], self.range_z[1]+self.grid_size, self.grid_size)
@@ -102,7 +110,7 @@ class Mapping:
 
     # Check if the indices are within the map's grid
     def map_to_data_structure(self, m_x, m_y, m_z):
-      if m_x + self.x_r > self.max_x or m_y + self.y_r > self.max_y or m_z + self.z_r > self.max_z:
+      if m_x + self.x_r >= self.max_x or m_y + self.y_r >= self.max_y or m_z + self.z_r >= self.max_z:
         return -1, -1 , -1
 
       return m_x + self.x_r, m_y + self.y_r, m_z + self.z_r
@@ -127,48 +135,112 @@ class Mapping:
 
         return sigma_0 * (pt1 * pt2 + pt3)
 
+    def process_point(self, pose_xyz, point, label):
+        """
+        Multiprocessing function for processing points.
+        """
+        global_x = pose_xyz[0] + point[0]
+        global_y = pose_xyz[1] + point[1]
+        global_z = pose_xyz[2] + point[2]
+
+        m_x = int(np.floor(global_x))
+        m_y = int(np.floor(global_y))
+        m_z = int(np.floor(global_z))
+
+        distance = np.sqrt(np.sum(np.power(point, 2)))
+        pose_theta = np.arctan2(pose_xyz[1], pose_xyz[0])
+        theta = np.arctan2(point[1], point[0])
+        theta2 = np.arctan2(point[2], point[0])
+
+        if not self.point_in_percep_field(distance):
+            return 0
+
+        # convert world map to data structure
+        ds_x, ds_y, ds_z = self.map_to_data_structure(m_x, m_y , m_z)
+        if ds_x < 0 or ds_y < 0 or ds_z <0:
+            return 0
+
+        update = 0.0
+
+        if distance < self.l:
+            update += self._kernel(distance)
+
+
+        for r in np.arange(0, distance, self.l):
+            p_x = pose_xyz[0] + r * np.cos(theta + pose_theta)
+            p_y = pose_xyz[1] + r * np.sin(theta + pose_theta) 
+            p_z = pose_xyz[2] + r * np.sin(theta2)          
+
+            d2 = np.sqrt((m_x - p_x) ** 2 + (m_y - p_y) ** 2+(m_z - p_z)**2)
+            update += self._kernel(distance)
+
+        shape = self.map['alpha'].shape
+        idx = ds_x * (shape[1] * shape[2] * shape[3]) + ds_y * (shape[2] * shape[3]) + ds_z * shape[3] + label
+        return (ds_x, ds_y, ds_z, label, update)
 
     def build_ogm_iterative(self, pose, scan, labels):
         """
         Iteratively build a map using poses and scans.
         """
-        print(labels)
         pose_xyz = pose[0:3, 3]
         print(pose_xyz)
         pose_theta = np.arctan2(pose_xyz[1], pose_xyz[0])
         for idx in range(0, scan.shape[0]):
-          global_x = pose_xyz[0] + scan[idx][0]
-          global_y = pose_xyz[1] + scan[idx][1]
-          global_z = pose_xyz[2] + scan[idx][2]
+            global_x = pose_xyz[0] + scan[idx][0]
+            global_y = pose_xyz[1] + scan[idx][1]
+            global_z = pose_xyz[2] + scan[idx][2]
 
-          m_x = int(np.floor(global_x))
-          m_y = int(np.floor(global_y))
-          m_z = int(np.floor(global_z))
+            m_x = int(np.floor(global_x))
+            m_y = int(np.floor(global_y))
+            m_z = int(np.floor(global_z))
 
-          distance = np.sqrt(np.sum(np.power(scan[idx], 2)))
-          theta = np.arctan2(scan[idx][1], scan[idx][0])
-          theta2 = np.arctan2(scan[idx][2], scan[idx][0])
+            distance = np.sqrt(np.sum(np.power(scan[idx], 2)))
+            theta = np.arctan2(scan[idx][1], scan[idx][0])
+            theta2 = np.arctan2(scan[idx][2], scan[idx][0])
 
-          if not self.point_in_percep_field(distance):
-            continue
+            if not self.point_in_percep_field(distance):
+                continue
 
-          # convert world map to data structure
-          ds_x, ds_y, ds_z = self.map_to_data_structure(m_x, m_y , m_z)
-          if ds_x < 0 or ds_y < 0 or ds_z <0:
-            continue
+            # convert world map to data structure
+            ds_x, ds_y, ds_z = self.map_to_data_structure(m_x, m_y , m_z)
+            if ds_x < 0 or ds_y < 0 or ds_z <0:
+                continue
 
-          if distance < self.l:
-            self.map['alpha'][ds_x, ds_y,ds_z, labels[idx]] += self._kernel(distance)
+            if distance < self.l:
+                self.map['alpha'][ds_x, ds_y,ds_z, labels[idx]] += self._kernel(distance)
 
-          for r in np.arange(0, distance, self.l):
-              p_x = pose_xyz[0] + r * np.cos(theta + pose_theta)
-              p_y = pose_xyz[1] + r * np.sin(theta + pose_theta) 
-              p_z = pose_xyz[2] + r * np.sin(theta2)          
+            for r in np.arange(0, distance, self.l):
+                p_x = pose_xyz[0] + r * np.cos(theta + pose_theta)
+                p_y = pose_xyz[1] + r * np.sin(theta + pose_theta) 
+                p_z = pose_xyz[2] + r * np.sin(theta2)          
 
-              d2 = np.sqrt((m_x - p_x) ** 2 + (m_y - p_y) ** 2+(m_z - p_z)**2)
-              self.map['alpha'][ds_x, ds_y, ds_z, labels[idx]] += self._kernel(d2)
+                d2 = np.sqrt((m_x - p_x) ** 2 + (m_y - p_y) ** 2+(m_z - p_z)**2)
+                self.map['alpha'][ds_x, ds_y, ds_z, labels[idx]] += self._kernel(d2)
 
-          # global_z = pose_xyz[2] + scan[idx][2]
+
+
+    def build_ogm_iterative_parallel(self, pose, scan, labels):
+        """
+        Iteratively build a map, processing points in parallel
+        """
+        global update_array
+        pose_xyz = pose[0:3, 3]
+        print(pose_xyz)
+
+        assert(len(scan) == len(labels))
+        lock = mp.Lock()
+        N = self.map['alpha'].flatten().shape[0]
+        update_array = mp.RawArray(c.c_double, N)
+        np.copyto(self.map['alpha'].flatten(), update_array)
+        pool = mp.Pool(1, initializer=_init, initargs=(update_array, lock,))
+
+        result = pool.starmap(self.process_point, zip(itertools.repeat(pose_xyz), scan, labels))
+        pool.close()
+        pool.join()
+        print(result)
+
+        self.map['alpha'] = np_update
+
     def optimize_map(self):
         """
         Optimize the map and compute mean and variance.
@@ -198,6 +270,7 @@ class Mapping:
         indices = np.where(semantic_class != 0)
         grid = grid[indices]
         semantic_class = semantic_class[indices]
+        assert(len(grid) > 0)
 
         for idx in range(0, len(grid)):
             p = Point3d()
@@ -226,9 +299,12 @@ class MappingSubscriber:
     def callback(self, sem_pc):
         pc_data, pc_labels = self.make_np(sem_pc)
         pose = self.make_pose(sem_pc)
+        t1 = time.time()
         self.map.build_ogm_iterative(pose, pc_data, pc_labels)
 
         map_msg = self.map.optimize_map()
+        t2 = time.time()
+        print(t2 - t1)
         self.publisher.publish(map_msg)
 
     def make_np(self, pc_msg):
