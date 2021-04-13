@@ -153,12 +153,12 @@ class Mapping:
         theta2 = np.arctan2(point[2], point[0])
 
         if not self.point_in_percep_field(distance):
-            return 0
+            return None
 
         # convert world map to data structure
         ds_x, ds_y, ds_z = self.map_to_data_structure(m_x, m_y , m_z)
         if ds_x < 0 or ds_y < 0 or ds_z <0:
-            return 0
+            return None
 
         update = 0.0
 
@@ -172,10 +172,8 @@ class Mapping:
             p_z = pose_xyz[2] + r * np.sin(theta2)          
 
             d2 = np.sqrt((m_x - p_x) ** 2 + (m_y - p_y) ** 2+(m_z - p_z)**2)
-            update += self._kernel(distance)
+            update += self._kernel(d2)
 
-        shape = self.map['alpha'].shape
-        idx = ds_x * (shape[1] * shape[2] * shape[3]) + ds_y * (shape[2] * shape[3]) + ds_z * shape[3] + label
         return (ds_x, ds_y, ds_z, label, update)
 
     def build_ogm_iterative(self, pose, scan, labels):
@@ -223,23 +221,20 @@ class Mapping:
         """
         Iteratively build a map, processing points in parallel
         """
-        global update_array
         pose_xyz = pose[0:3, 3]
         print(pose_xyz)
 
         assert(len(scan) == len(labels))
-        lock = mp.Lock()
-        N = self.map['alpha'].flatten().shape[0]
-        update_array = mp.RawArray(c.c_double, N)
-        np.copyto(self.map['alpha'].flatten(), update_array)
-        pool = mp.Pool(1, initializer=_init, initargs=(update_array, lock,))
+        pool = mp.Pool(12)
 
         result = pool.starmap(self.process_point, zip(itertools.repeat(pose_xyz), scan, labels))
         pool.close()
         pool.join()
-        print(result)
 
-        self.map['alpha'] = np_update
+        for idx in range(0, len(result)):
+            if result[idx] == None:
+                continue
+            self.map['alpha'][result[idx][0], result[idx][1], result[idx][2], result[idx][3]] += result[idx][4]
 
     def optimize_map(self):
         """
