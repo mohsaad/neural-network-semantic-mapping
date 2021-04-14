@@ -17,7 +17,8 @@ score per voxel and display the mean of each cell.
 Python 3
 numpy
 PyTorch 1.8
-torchsparse
+libsparsehash-dev (sudo apt install libsparsehash-dev)
+torchsparse (pip3 install --upgrade git+https://github.com/mit-han-lab/torchsparse.git)
 spvnas (included in repo)
 ```
 
@@ -25,9 +26,18 @@ Tested with ROS Melodic and Ubuntu 18.04. If you're using ROS < Noetic, you'll n
 
 ## Dataset
 
+![image](https://user-images.githubusercontent.com/6224951/114766606-9c3c7480-9d34-11eb-816c-555ee526bfd3.png)
+
 We evaluated our dataset using the SemanticKitti dataset, using sequence 04 as our baseline. The dataset can be found [here](http://semantic-kitti.org/).
 
 ## Usage
+
+Install dependencies:
+
+```
+sudo apt install libsparsehash-dev
+pip3 install --upgrade git+https://github.com/mit-han-lab/torchsparse.git
+```
 
 Create a folder called catkin_ws:
 
