@@ -8,7 +8,7 @@ This repo contains the work done for our final project for EECS568: Mobile Robot
 that iteratively takes in poses and point cloud scans, passes them through a neural network, and builds a 3-dimensional voxel grid
 semantic represenation of the world. We build this entire pipeline in ROS so it can be run on any computer, and visualize using rviz.
 
-The pipeline uses the MinkuNet implemented by Tang et. al in their paper [Searching Efficient 3D Architectures with Sparse Point-Voxel Convolution](https://arxiv.org/abs/2007.16100) for the semantic segmentation on point clouds, and the mapping algorithm defined in [Bayesian Spatial Kernel Smoothing for Scalable Dense Semantic Mapping](https://ieeexplore.ieee.org/abstract/document/8954837). We utilize the kernel function defined to output a semantic class
+The pipeline uses the MinkuNet implemented by Tang et. al in their paper [Searching Efficient 3D Architectures with Sparse Point-Voxel Convolution](https://arxiv.org/abs/2007.16100) for the semantic segmentation on point clouds, and the mapping algorithm defined in [Bayesian Spatial Kernel Smoothing for Scalable Dense Semantic Mapping](https://ieeexplore.ieee.org/abstract/document/8954837) by Gan et al. We utilize the kernel function defined to output a semantic class
 score per voxel and display the mean of each cell.
 
 ## Requirements
