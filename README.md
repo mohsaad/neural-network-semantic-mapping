@@ -21,7 +21,11 @@ torchsparse
 spvnas (included in repo)
 ```
 
-Tested with ROS Melodic and Ubuntu 18.04.
+Tested with ROS Melodic and Ubuntu 18.04. If you're using ROS < Noetic, you'll need to compile ROS with python3 support. [This](https://gist.github.com/drmaj/20b365ddd3c4d69e37c79b01ca17587a) is a good tutorial on how to do so.
+
+## Dataset
+
+We evaluated our dataset using the SemanticKitti dataset, using sequence 04 as our baseline. The dataset can be found [here](http://semantic-kitti.org/).
 
 ## Usage
 
@@ -73,3 +77,7 @@ rosrun tf2 static_transform_publisher 0 0 0 0 0 0 0.1
 ## Demo
 
 https://youtu.be/DWks8yIeaGQ
+
+## Acknowledgements
+
+We would like to thank Prof. Maani Ghaffari Jadidi, GSIs Xi Lin and Cynthia Lin for their help and instruction in this class.
