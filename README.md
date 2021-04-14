@@ -18,6 +18,7 @@ Python 3
 numpy
 PyTorch 1.8
 libsparsehash-dev (sudo apt install libsparsehash-dev)
+torchpack (pip3 install torchpack)
 torchsparse (pip3 install --upgrade git+https://github.com/mit-han-lab/torchsparse.git)
 spvnas (included in repo)
 ```
@@ -36,7 +37,7 @@ Install dependencies:
 
 ```
 sudo apt install libsparsehash-dev
-pip3 install --upgrade git+https://github.com/mit-han-lab/torchsparse.git
+pip3 install --upgrade git+https://github.com/mit-han-lab/torchsparse.git torchpack
 ```
 
 Create a folder called catkin_ws:
