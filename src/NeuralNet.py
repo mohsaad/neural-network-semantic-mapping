@@ -33,6 +33,15 @@ from spvnas.core.models.semantic_kitti.minkunet import MinkUNet
 
 
 def download_url(url, model_dir='~/.torch/', overwrite=False):
+    """
+    Downloads a model to our specified directory.
+
+    @param url          URL to download
+    @param model_dir    where to save model
+    @param overwrite    overwrite existing model
+
+    @returns            downloaded torch model file path
+    """
     target_dir = url.split('/')[-1]
     model_dir = os.path.expanduser(model_dir)
     if not os.path.exists(model_dir):
@@ -46,6 +55,14 @@ def download_url(url, model_dir='~/.torch/', overwrite=False):
 
 
 def minkunet(net_id, pretrained=True, **kwargs):
+    """
+    Loads the Minkunet model.
+
+    @param net_id       ID of pretrained network as string
+    @param pretrained   whether to use the pretrained network or not
+    @returns            torch model for use
+    """
+
     url_base = 'https://hanlab.mit.edu/files/SPVNAS/minkunet/'
     net_config = json.load(open(
         download_url(url_base + net_id + '/net.config', model_dir='.torch/minkunet/%s/' % net_id)
@@ -65,6 +82,15 @@ def minkunet(net_id, pretrained=True, **kwargs):
     return model
 
 def process_point_cloud(input_point_cloud, voxel_size=0.05, ignore_label=19):
+    """
+    Proccesses the point cloud and creates an inference object.
+
+    @param input_point_cloud    point cloud to process
+    @param voxel_size           voxel size to downsample to
+    @param ignore_label         label to ignore when processing
+
+    @returns                    dictionary of inputs
+    """
     input_point_cloud[:, 3] = input_point_cloud[:, 3]
     # get rounded coordinates
     pc_ = np.round(input_point_cloud[:, :3] / voxel_size)
@@ -110,31 +136,45 @@ def process_point_cloud(input_point_cloud, voxel_size=0.05, ignore_label=19):
 #       16: 'terrain', 17: 'pole', 18: 'traffic-sign'
 #   }
 class PointCloudSegmentation:
-  def __init__(self):
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    self.model = minkunet('SemanticKITTI_val_MinkUNet@29GMACs').to(device)
-    self.model.eval()
+    """
+    Class to handle point cloud semantic segmentation
+    """
+    def __init__(self):
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        self.model = minkunet('SemanticKITTI_val_MinkUNet@29GMACs').to(device)
+        self.model.eval()
 
-  # Pass index into the point clouds/labels
-  def segment_pc(self, point_cloud):
-    # use sparse_collate_fn to create batch
-    feed_dict = sparse_collate_fn([process_point_cloud(point_cloud)])
+    # Pass index into the point clouds/labels
+    def segment_pc(self, point_cloud):
+        """
+        Runs inference on point clouds.
 
-    # run inference
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    inputs = feed_dict['lidar'].to(device)
-    outputs = self.model(inputs)
-    predictions = outputs.argmax(1).cpu().numpy()
+        @param  point_cloud     point cloud to process
+        @returns                original point cloud
+        @returns                per-point semantic predictions
+        """
+        # use sparse_collate_fn to create batch
+        feed_dict = sparse_collate_fn([process_point_cloud(point_cloud)])
 
-    # map predictions from downsampled sparse voxels to original points
-    predictions = predictions[feed_dict['inverse_map'].F.int().cpu().numpy()]
+        # run inference
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        inputs = feed_dict['lidar'].to(device)
+        outputs = self.model(inputs)
+        predictions = outputs.argmax(1).cpu().numpy()
 
-    # Map back from sparse
-    pc = feed_dict['pc'].F.cpu().numpy()
-    inverse_map = feed_dict['inverse_map'].F.cpu().numpy()
-    return pc, predictions
+        # map predictions from downsampled sparse voxels to original points
+        predictions = predictions[feed_dict['inverse_map'].F.int().cpu().numpy()]
+
+        # Map back from sparse
+        pc = feed_dict['pc'].F.cpu().numpy()
+        inverse_map = feed_dict['inverse_map'].F.cpu().numpy()
+        return pc, predictions
 
 class PublishSubscribe:
+    """
+    Class to handle ROS inputs/outputs.
+    """
+
     def __init__(self, publisher):
         self.publisher = publisher
 
@@ -144,6 +184,7 @@ class PublishSubscribe:
         """
         Processes each point cloud message.
 
+        @param pc_msg   point cloud message containing a point cloud and pose
         """
         pc_data = self.make_np(pc_msg)
         sem_pc = PointCloud()
@@ -159,6 +200,12 @@ class PublishSubscribe:
 
     # This would be where the neural network would do stuff
     def semantic_labeling(self, pc):
+        """
+        Runs semantic segmentation on the point cloud
+
+        @param pc   point cloud to process
+        """
+
         points = []
         point_cloud, predictions = self.net.segment_pc(pc)
 

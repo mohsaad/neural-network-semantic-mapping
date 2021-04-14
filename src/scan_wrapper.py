@@ -14,9 +14,8 @@ def parse_calibration(filename):
     """
     read calibration file with given filename
 
-    Returns
-    -------
-    dict: Calibration matrices as 4x4 numpy arrays.
+    @param filename     filename of calibration
+    @return             Calibration matrices as 4x4 numpy arrays
     """
     calib = {}
     with open(filename, 'r', encoding='utf-8') as f:
@@ -35,40 +34,17 @@ def parse_calibration(filename):
     return calib
 
 
-def isclose(x, y, rtol=1.e-5, atol=1.e-8):
-    return abs(x-y) <= atol + rtol * abs(y)
-
-def euler_angles_from_rotation_matrix(R):
-    '''
-    From a paper by Gregory G. Slabaugh (undated),
-    "Computing Euler angles from a rotation matrix
-    '''
-    phi = 0.0
-    if isclose(R[2,0],-1.0):
-        theta = np.pi/2.0
-        psi = np.atan2(R[0,1],R[0,2])
-    elif isclose(R[2,0],1.0):
-        theta = np.pi/2.0
-        psi = np.arctan2(-R[0,1],-R[0,2])
-    else:
-        theta = -np.arcsin(R[2,0])
-        cos_theta = np.cos(theta)
-        psi = np.arctan2(R[2,1]/cos_theta, R[2,2]/cos_theta)
-        phi = np.arctan2(R[1,0]/cos_theta, R[0,0]/cos_theta)
-    return psi, theta, phi
-
-
 # Note: this depends on the structure of our project
 # Need to make a messag eto hold pose and point cloud
 def load_scan(counter, folder, poses):
     """
     Load a scan from a file and return a point cloud message.
 
-    Inputs:
-        - filename: Name of scan to load.
-    Outputs:
-        - pose, as SE(3) transform
-        - pointcloud, as list of x,y,z points
+    @param counter  scan id to load
+    @param folder   folder to load scans from
+    @param poses    list of poses
+
+    @returns        ROS message of scan and pose
     """
     filename = folder + "/" + "{:06}".format(counter) + ".bin"
     point_cloud = np.fromfile(filename, dtype=np.float32).reshape(-1,4)
@@ -91,11 +67,19 @@ def load_scan(counter, folder, poses):
 
 
 def load_poses_from_file(filename, calibration=None):
+    """
+    Loads our poses from the poses.txt file.
+
+    @param filename     file to load from
+    @param calibration  calibration matrix
+    @returns            list of poses
+    """
     scan_poses = []
     poses_raw = np.genfromtxt(filename, delimiter=' ')
     # Tr = calibration["Tr"]
     # Tr_inv = inv(Tr)
 
+    # Use calibration to change into something more interpretable.
     calibration = np.asarray([[0, 0, 1, 0],
                               [0, 1, 0, 0],
                               [1, 0, 0, 0],
@@ -109,10 +93,6 @@ def load_poses_from_file(filename, calibration=None):
         pose[3, 3] = 1.0
 
         pose = calibration @ pose
-        print(pose)
-        print(euler_angles_from_rotation_matrix(pose[0:3, 0:3]))
-        # TODO: Apply calibration
-        # scan_poses.append(np.matmul(Tr_inv, np.matmul(pose, Tr)))
         scan_poses.append(pose)
 
     return scan_poses
@@ -123,8 +103,6 @@ def main():
     parser.add_argument('-p', "--poses", required=True, help="path to poses file")
     parser.add_argument('-v', "--velo", required=True, help="path to velodyne folder")
 
-    # Add calib later
-    # parser.add_argument('-c', "--calib", required=True, help="path to calib file")
 
     args = parser.parse_args()
 
@@ -134,7 +112,6 @@ def main():
     rate = rospy.Rate(1.0 / 70)
 
     scan_poses = load_poses_from_file(args.poses)
-    # scan_poses = load_poses_from_file(args.poses, args.calib)
 
     counter = 0
 

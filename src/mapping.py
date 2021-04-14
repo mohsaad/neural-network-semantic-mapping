@@ -20,16 +20,18 @@ COLOR_MAP = np.array(['#f59664', '#f5e664', '#963c1e',
                       '#0000ff', '#ffffff'])
 
 def hex_to_rgb(value):
+    """
+    Convert a hex value to an RGB tuple.
+    """
     value = value.lstrip('#')
     lv = len(value)
     return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
 
-def _init(a, l):
-    global update_array, lock
-    update_array = a
-    lock = l
 # Occupancy Grid Mapping Class
 class Mapping:
+    """
+    Class to do continuous sensor counting model mapping.
+    """
     def __init__(self):
         # map dimensions
         self.x_r = 400
@@ -99,21 +101,24 @@ class Mapping:
         self.max_z = X.shape[2]
 
     def point_in_percep_field(self, dist):
-      """
-      Given a point in the sensor frame, return whether it's in the perceptual field.
-      """
-      inside = False
-      if dist > 0 and dist < self.z_max:
-        inside = True
+        """
+        Given a point in the sensor frame, return whether it's in the perceptual field.
+        """
+        inside = False
+        if dist > 0 and dist < self.z_max:
+            inside = True
 
-      return inside
+        return inside
 
     # Check if the indices are within the map's grid
     def map_to_data_structure(self, m_x, m_y, m_z):
-      if m_x + self.x_r >= self.max_x or m_y + self.y_r >= self.max_y or m_z + self.z_r >= self.max_z:
-        return -1, -1 , -1
+        """
+        Given a map point, find the corresponding indices in our data structures.
+        """
+        if m_x + self.x_r >= self.max_x or m_y + self.y_r >= self.max_y or m_z + self.z_r >= self.max_z:
+            return -1, -1 , -1
 
-      return m_x + self.x_r, m_y + self.y_r, m_z + self.z_r
+        return m_x + self.x_r, m_y + self.y_r, m_z + self.z_r
 
 
     def data_structure_to_map(self, idx, jdx, kdx):
@@ -126,6 +131,9 @@ class Mapping:
         return idx - self.x_r, jdx - self.y_r, kdx - self.z_r
 
     def _kernel(self, distance, sigma_0=0.1):
+        """
+        Kernel function to determine whether we should update the map odds
+        """
         if distance >= self.l:
             return 0
 
@@ -181,7 +189,6 @@ class Mapping:
         Iteratively build a map using poses and scans.
         """
         pose_xyz = pose[0:3, 3]
-        print(pose_xyz)
         pose_theta = np.arctan2(pose_xyz[1], pose_xyz[0])
         for idx in range(0, scan.shape[0]):
             global_x = pose_xyz[0] + scan[idx][0]
@@ -222,7 +229,6 @@ class Mapping:
         Iteratively build a map, processing points in parallel
         """
         pose_xyz = pose[0:3, 3]
-        print(pose_xyz)
 
         assert(len(scan) == len(labels))
         pool = mp.Pool(12)
@@ -286,12 +292,18 @@ class Mapping:
         return self.map_msg
 
 class MappingSubscriber:
+    """
+    Class to handle subscription to point cloud publisher.
+    """
     def __init__(self, publisher):
         self.publisher = publisher
         self.map = Mapping()
         self.map.construct_map()
 
     def callback(self, sem_pc):
+        """
+        Handles point cloud messages, prints out timing information.
+        """
         pc_data, pc_labels = self.make_np(sem_pc)
         pose = self.make_pose(sem_pc)
         t1 = time.time()
